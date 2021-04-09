@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: CI
+name: CI/CD
 
 # Controls when the action will run. 
 on:
@@ -32,3 +32,25 @@ jobs:
           repository: fortruce/clojure-app
           tag_with_ref: true
           tag_with_sha: true
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          
+      - name: Update deployment
+        run: TAG=sha-$(echo $GITHUB_SHA | head -c7) && sed -i 's|<IMAGE>|fortruce/clojure-app:'${TAG}'|' $GITHUB_WORKSPACE/deployment.yaml
+      
+      - name: Save DigitalOcean kubeconfig with short-lived credentials
+        run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 cluster
+        
+      - name: Deploy to DigitalOcean k8s
+        run: kubectl apply -f $GITHUB_WORKSPACE/deployment.yaml
+        
+      - name: Verify deployment
+        run: kubectl rollout status deployment/clojure-app
