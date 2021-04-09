@@ -1,0 +1,99 @@
+* Kubernetes
+
+  Playing around with k8s with a cluster on DigitalOcean.
+
+** TODO Set up custom domain name to load balancer
+
+** TODO Set up Github Actions to build and upload Dockerfile
+
+** TODO Automate deploys on push to main
+   
+** TODO Investigate clusterlint
+   https://docs.digitalocean.com/products/kubernetes/resources/clusterlint-errors/#dobs-pod-owner
+** Basic Deploy
+
+  Modified/followed instructions from:
+
+  * https://docs.docker.com/get-started/kube-deploy/.
+  * https://www.digitalocean.com/community/tutorials/how-to-deploy-resilient-go-app-digitalocean-kubernetes
+
+  
+
+*** Generated a basic clojure app
+
+     ~lein new luminus clojure-app~
+
+*** Build the Dockerfile for clojure-app
+
+     ~docker build -t fortruce/clojure-app .~
+
+*** Push the image to Docker Hub
+
+     ~docker push fortruce/clojure-app~
+     
+**** TODO Figure out how to tag images
+    
+*** Write deployment.yaml
+
+   #+begin_src yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clojure-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      name: clojure-app
+  template:
+    metadata:
+      labels:
+        name: clojure-app
+    spec:
+      containers:
+      - name: clojure-app
+        image: fortruce/clojure-app
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+   #+end_src
+
+*** Run deployment
+
+   ~kubectl apply -f deployment.yaml~
+
+*** Configure a load balancer
+
+   #+begin_src yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: balancer
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3000
+  selector:
+    name: clojure-app
+   #+end_src
+
+*** Run deployment
+
+   ~kubectl apply -f deployment.yaml~
+
+
+** CI/CD with Github Actions
+
+   Instructions: https://www.digitalocean.com/blog/how-to-deploy-to-digitalocean-kubernetes-with-github-actions/
+   
+   Create multiple actions in Github:
+
+   1. Build
+      - Build the Dockerfile image
+      - Push the image to DockerHub registry with appropriate tag
+   2. Deploy
+      - Apply the deployment to our cluster if build job succeeds
